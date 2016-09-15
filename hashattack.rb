@@ -31,8 +31,9 @@ def collision_attack(bit_size)
   found = false
   to_return = Benchmark.measure do
     rstrings1.each do |rstring1|
+      digest1 = HashAttack.create_digest(rstring1, bit_size)
       rstrings2.each do |rstring2|
-        if rstring1 != rstring2 && HashAttack.create_digest(rstring1, bit_size) == HashAttack.create_digest(rstring2, bit_size) then
+        if rstring1 != rstring2 && digest1 == HashAttack.create_digest(rstring2, bit_size) then
           found = true
           break
         end
@@ -73,9 +74,15 @@ end]
 
 collision_data = Hash[TEST_BIT_SIZES.map do |bit_size|
   print "testing collision attack for " + bit_size.to_s + " bits: "
-  to_return = (TRIALS_PER_BIT_SIZE.times.map do
-    collision_attack(bit_size)
-  end.inject(&:+)*1000/TRIALS_PER_BIT_SIZE).to_s + " ms\n"
+  to_return = Array.new
+  TRIALS_PER_BIT_SIZE.times.map do
+    Thread.new do
+      to_return.push(collision_attack(bit_size))
+    end
+  end.each do |t|
+    t.join
+  end
+  to_return = to_return.inject(&:+)*1000/TRIALS_PER_BIT_SIZE
   print to_return.to_s + " ms\n"
   [bit_size, to_return]
 end]
