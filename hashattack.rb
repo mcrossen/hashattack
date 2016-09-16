@@ -45,23 +45,22 @@ def collision_attack(bit_size, set_index = 0)
   # randomize the set of preimages to make each trial different
   digests = Array.new(SHUFFLED_RAND_STRINGS[set_index].size)
   found = false
-  # measure the runtime of this process
-  to_return = Benchmark.measure do
-    # for every new digest computed, compare it against the list of known digests to find a match
-    SHUFFLED_RAND_STRINGS[set_index].each_with_index do |rstring1, index1|
-      digests[index1] = create_digest(rstring1, bit_size)
-      # the '-1' prevents the digest from being compared with itself
-      (index1-1).times.each do |index2|
-        if digests[index1] == digests[index2] then
-          found = true
-          break
-        end
+  used_digests=0
+  # for every new digest computed, compare it against the list of known digests to find a match
+  SHUFFLED_RAND_STRINGS[set_index].each_with_index do |rstring1, index1|
+    digests[index1] = create_digest(rstring1, bit_size)
+    used_digests += 1
+    # the '-1' prevents the digest from being compared with itself
+    (index1-1).times.each do |index2|
+      if digests[index1] == digests[index2] then
+        found = true
+        break
       end
-      break if found
     end
-  end.real
+    break if found
+  end
   raise "no collision found" if !found
-  to_return
+  used_digests
 end
 
 def preimage_attack(bit_size, set_index = 0)
@@ -69,17 +68,13 @@ def preimage_attack(bit_size, set_index = 0)
   preimage = SHUFFLED_RAND_STRINGS[set_index].sample
   digest = create_digest(preimage, bit_size)
   found = false
-  # record the runtime of the process
-  to_return = Benchmark.measure do
-    SHUFFLED_RAND_STRINGS[set_index].each do |rstring|
-      if create_digest(rstring, bit_size) == digest then
-        found = true
-        break
-      end
-    end
-  end.real
-  raise "preimage attack failed" if !found
-  to_return
+  digests = 0
+  SHUFFLED_RAND_STRINGS[set_index].each do |rstring|
+    digests+=1
+    break if create_digest(rstring, bit_size) == digest
+  end
+  raise "preimage attack failed" if digests >= SHUFFLED_RAND_STRINGS[set_index].size
+  digests
 end
 
 Thread.abort_on_exception=true
@@ -102,9 +97,9 @@ collision_data = Hash[TEST_BIT_SIZES.map do |bit_size|
     end
   end
   # compute the average
-  to_return = to_return.inject(&:+)*1000/TRIALS_PER_BIT_SIZE
+  to_return = to_return.inject(&:+)/TRIALS_PER_BIT_SIZE
   # finish displaying status
-  print to_return.to_s + " ms\n"
+  print to_return.to_s + " attempts\n"
   # return the data as a hash from bit size to runtime
   [bit_size, to_return]
 end]
@@ -127,15 +122,15 @@ preimage_data = Hash[TEST_BIT_SIZES.map do |bit_size|
     end
   end
   # compute the average
-  to_return = to_return.inject(&:+)*1000/TRIALS_PER_BIT_SIZE
+  to_return = to_return.inject(&:+)/TRIALS_PER_BIT_SIZE
   # finish displaying status
-  print to_return.to_s + " ms\n"
+  print to_return.to_s + " attempts\n"
   # return the data as a hash from bit size to runtime
   [bit_size, to_return]
 end]
 
 # write the data to a comma separated variable file
 puts "writing data to file..."
-File.write(FILE_OUT, "bit size, preimage times, collision times\n" + TEST_BIT_SIZES.map do |bit_size|
+File.write(FILE_OUT, "bit size, preimage attempts, collision attempts\n" + TEST_BIT_SIZES.map do |bit_size|
   bit_size.to_s + ", " + preimage_data[bit_size].to_s + ", " + collision_data[bit_size].to_s
 end.join("\n"))
